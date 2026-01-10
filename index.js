@@ -1,89 +1,66 @@
-const express = require('express');
-const cors = require('cors');
-// Pobieramy całą bibliotekę jako obiekt
-const Consumet = require('@consumet/extensions');
+import express from 'express';
+import cors from 'cors';
+import { ANIME, MOVIES, MANGA } from '@consumet/extensions';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const port = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
 
-// --- PANCERNA INICJALIZACJA DOSTAWCY ---
-// Ten fragment naprawia błąd "is not a constructor" na Vercel
-let gogoanime;
-
-try {
-    console.log("Próba inicjalizacji Gogoanime...");
-    
-    // Metoda 1: Standardowa (dla lokalnego Node.js)
-    if (Consumet.ANIME && Consumet.ANIME.Gogoanime) {
-        gogoanime = new Consumet.ANIME.Gogoanime();
-        console.log("Metoda 1 zadziałała.");
-    } 
-    // Metoda 2: Zagnieżdżony default (częste na Vercel/Webpack)
-    else if (Consumet.default && Consumet.default.ANIME && Consumet.default.ANIME.Gogoanime) {
-        gogoanime = new Consumet.default.ANIME.Gogoanime();
-        console.log("Metoda 2 zadziałała.");
-    }
-    // Metoda 3: Bezpośredni eksport
-    else if (Consumet.Gogoanime) {
-        gogoanime = new Consumet.Gogoanime();
-        console.log("Metoda 3 zadziałała.");
-    }
-    // Metoda 4: Nowa struktura (czasami występuje)
-    else if (Consumet.default && Consumet.default.Gogoanime) {
-        gogoanime = new Consumet.default.Gogoanime();
-        console.log("Metoda 4 zadziałała.");
-    }
-    else {
-        throw new Error("Nie znaleziono klasy Gogoanime w imporcie.");
-    }
-
-} catch (error) {
-    console.error("BŁĄD KRYTYCZNY INICJALIZACJI:", error);
-}
-
-// Główny endpoint diagnostyczny
 app.get('/', (req, res) => {
-    res.json({ 
-        status: gogoanime ? "Online" : "Error", 
-        message: gogoanime ? "AniStream Backend Gotowy!" : "Błąd inicjalizacji biblioteki Consumet",
-        debug: {
-            hasConsumet: !!Consumet,
-            keys: Object.keys(Consumet || {})
-        }
-    });
+  res.json({ 
+    message: 'AniStream Backend is Running!', 
+    status: 'Active',
+    version: '2.0.0 (Fixed)' 
+  });
 });
 
-// Endpoint Info
+// Gogoanime Route (Najważniejszy)
+app.get('/anime/gogoanime/:query?', async (req, res) => {
+  try {
+    // FIX: Używamy ANIME.Gogoanime zamiast Gogoanime bezpośrednio
+    const gogoanime = new ANIME.Gogoanime();
+    const query = req.params.query;
+    
+    // Jeśli brak query, zwróć trending
+    if (!query) {
+        const results = await gogoanime.fetchTopAiring();
+        return res.json(results);
+    }
+    
+    // Obsługa wyszukiwania
+    const results = await gogoanime.search(query);
+    res.json(results);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Info o anime
 app.get('/anime/gogoanime/info/:id', async (req, res) => {
-    if (!gogoanime) return res.status(500).json({ error: "Serwer nie zainicjował poprawnie dostawcy anime." });
-    try {
-        const id = req.params.id;
-        const data = await gogoanime.fetchAnimeInfo(id);
-        res.json(data);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Błąd pobierania informacji", details: err.toString() });
-    }
+  try {
+    const gogoanime = new ANIME.Gogoanime();
+    const id = req.params.id;
+    const data = await gogoanime.fetchAnimeInfo(id);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// Endpoint Stream
+// Linki do streamingu
 app.get('/anime/gogoanime/watch/:episodeId', async (req, res) => {
-    if (!gogoanime) return res.status(500).json({ error: "Serwer nie zainicjował poprawnie dostawcy anime." });
-    try {
-        const episodeId = req.params.episodeId;
-        const data = await gogoanime.fetchEpisodeSources(episodeId);
-        res.json(data);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Błąd pobierania streamu", details: err.toString() });
-    }
+  try {
+    const gogoanime = new ANIME.Gogoanime();
+    const id = req.params.episodeId;
+    const data = await gogoanime.fetchEpisodeSources(id);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+app.listen(port, () => {
+  console.log(`Serwer nasłuchuje na porcie ${port}`);
 });
-
-module.exports = app;
